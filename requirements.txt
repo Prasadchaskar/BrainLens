@@ -1,3 +1,4 @@
 dvc
 dagshub
 mlflow
+Pillow
