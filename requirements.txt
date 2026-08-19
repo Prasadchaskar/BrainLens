@@ -2,6 +2,7 @@ dvc
 dagshub
 mlflow
 python-dotenv
+python-multipart
 Pillow
 numpy
 pandas

@@ -225,3 +225,5 @@ data/raw/*
 !data/raw/dataset.dvc
 
 artifacts/
+
+.vscode/
