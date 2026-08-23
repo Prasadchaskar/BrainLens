@@ -227,3 +227,7 @@ data/raw/*
 artifacts/
 
 .vscode/
+
+# Monitoring service runtime data
+services/monitoring-service/data/*
+!services/monitoring-service/data/.gitkeep

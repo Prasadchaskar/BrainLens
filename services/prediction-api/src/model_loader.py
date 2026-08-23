@@ -5,7 +5,6 @@ from typing import Optional
 import mlflow
 import mlflow.pytorch
 import torch
-
 from dotenv import load_dotenv
 
 
@@ -82,7 +81,6 @@ os.environ[
     "MLFLOW_TRACKING_PASSWORD"
 ] = MLFLOW_TOKEN
 
-
 mlflow.set_tracking_uri(
     MLFLOW_TRACKING_URI
 )
@@ -104,7 +102,10 @@ DEVICE = torch.device(
 # ============================================================
 
 _model = None
+
 _model_uri: Optional[str] = None
+
+_model_version: Optional[str] = None
 
 
 # ============================================================
@@ -115,15 +116,24 @@ def load_model():
     """
     Load the model assigned to the configured MLflow alias.
 
-    Example:
-        models:/brainlens-brain-tumor-classifier@champion
+    The model, model URI, and concrete registered model
+    version are resolved once and cached.
     """
 
     global _model
     global _model_uri
+    global _model_version
+
+    # --------------------------------------------------------
+    # Return cached model
+    # --------------------------------------------------------
 
     if _model is not None:
         return _model
+
+    # --------------------------------------------------------
+    # Build MLflow alias URI
+    # --------------------------------------------------------
 
     _model_uri = (
         f"models:/{MODEL_NAME}@{MODEL_ALIAS}"
@@ -139,6 +149,10 @@ def load_model():
         DEVICE,
     )
 
+    # --------------------------------------------------------
+    # Load model
+    # --------------------------------------------------------
+
     model = mlflow.pytorch.load_model(
         _model_uri,
         map_location=DEVICE,
@@ -150,7 +164,37 @@ def load_model():
 
     model.eval()
 
+    # --------------------------------------------------------
+    # Cache model
+    # --------------------------------------------------------
+
     _model = model
+
+    # --------------------------------------------------------
+    # Resolve concrete registered model version
+    #
+    # IMPORTANT:
+    # Use MLflow's dedicated alias lookup instead of
+    # searching all model versions manually.
+    # --------------------------------------------------------
+
+    client = mlflow.MlflowClient()
+
+    model_version = (
+        client.get_model_version_by_alias(
+            MODEL_NAME,
+            MODEL_ALIAS,
+        )
+    )
+
+    _model_version = str(
+        model_version.version
+    )
+
+    logger.info(
+        "Resolved MLflow model version: %s",
+        _model_version,
+    )
 
     logger.info(
         "Model loaded successfully."
@@ -166,6 +210,8 @@ def load_model():
 def get_model():
     """
     Return the cached model.
+
+    The model is loaded only once.
     """
 
     if _model is None:
@@ -174,9 +220,13 @@ def get_model():
     return _model
 
 
+# ============================================================
+# MODEL URI
+# ============================================================
+
 def get_model_uri() -> str:
     """
-    Return the configured MLflow model URI.
+    Return the MLflow model URI used by the API.
     """
 
     if _model_uri is None:
@@ -186,6 +236,29 @@ def get_model_uri() -> str:
 
     return _model_uri
 
+
+# ============================================================
+# MODEL VERSION
+# ============================================================
+
+def get_model_version() -> str:
+    """
+    Return the concrete registered MLflow model version.
+
+    The version is resolved when the model is loaded and
+    cached for subsequent requests.
+    """
+
+    if _model_version is None:
+        load_model()
+
+    # load_model() guarantees that _model_version is set.
+    return _model_version
+
+
+# ============================================================
+# DEVICE
+# ============================================================
 
 def get_device() -> torch.device:
     """

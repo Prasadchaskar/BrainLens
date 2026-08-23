@@ -14,9 +14,12 @@ from .model_loader import (
     get_device,
     get_model,
     get_model_uri,
+    get_model_version
 )
-from .preprocessing import preprocess_image
+from .preprocessing import preprocess_image, extract_monitoring_features
 from .schemas import PredictionResponse
+from .monitoring import send_prediction_event
+import uuid
 
 # ============================================================
 # LOGGING
@@ -125,6 +128,7 @@ def health():
         "service": "brainlens-prediction-api",
         "model_name": MODEL_NAME,
         "model_alias": MODEL_ALIAS,
+        "model_version": get_model_version(),
         "model_uri": get_model_uri(),
         "device": str(get_device()),
     }
@@ -150,6 +154,7 @@ def model_health():
             "model_loaded": model is not None,
             "model_name": MODEL_NAME,
             "model_alias": MODEL_ALIAS,
+            "model_version": get_model_version(),
             "model_uri": get_model_uri(),
             "device": str(get_device()),
         }
@@ -179,6 +184,7 @@ def model_health():
 )
 async def predict(
     file: UploadFile = File(...),
+    reference_mode: bool = False
 ):
     """
     Predict the brain tumor class for an uploaded MRI image.
@@ -306,6 +312,32 @@ async def predict(
             )
         )
 
+        prediction_id = str(
+            uuid.uuid4()
+        )
+
+        monitoring_features = (
+            extract_monitoring_features(
+                image
+            )
+        )
+
+        monitoring_event = {
+            "prediction_id": prediction_id,
+            "model_name": MODEL_NAME,
+            "model_alias": MODEL_ALIAS,
+            "model_version": get_model_version(),
+            "model_uri": get_model_uri(),
+            "predicted_class": predicted_class,
+            "confidence": confidence_value,
+            **monitoring_features,
+        }
+
+        if not reference_mode:
+            send_prediction_event(
+                monitoring_event
+            )
+
         logger.info(
             "Prediction completed | "
             "class=%s | confidence=%.4f",
@@ -318,6 +350,7 @@ async def predict(
             confidence=confidence_value,
             model_name=MODEL_NAME,
             model_alias=MODEL_ALIAS,
+            model_version=get_model_version(),
             model_uri=get_model_uri(),
         )
 

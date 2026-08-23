@@ -19,6 +19,11 @@ class PredictionResponse(BaseModel):
         description="Registered MLflow model name.",
     )
 
+    model_version: str = Field(
+        ...,
+        description="Concrete registered MLflow model version.",
+    )
+    
     model_alias: str = Field(
         ...,
         description="MLflow alias used for inference.",
