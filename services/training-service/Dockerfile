@@ -14,7 +14,8 @@ RUN python -m pip install \
     scikit-learn \
     Pillow \
     python-dotenv \
-    mlflow
+    mlflow\
+    tqdm
 
 COPY services/training-service/src ./src
 
