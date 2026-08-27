@@ -10,6 +10,11 @@ COPY services/prediction-api/requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN python -m pip install --no-cache-dir \
+    torch==2.13.0+cpu \
+    torchvision==0.28.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
+    
 COPY services/prediction-api/src ./src
 
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
