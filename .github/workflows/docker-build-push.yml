@@ -10,36 +10,100 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: brainlens-docker-${{ github.ref }}
+  cancel-in-progress: true
+
 
 jobs:
 
-  build-and-push:
+  # ==========================================================
+  # 1. DETECT WHICH SERVICES CHANGED
+  # ==========================================================
+
+  changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+
+    outputs:
+      data_download: ${{ steps.filter.outputs.data_download }}
+      data_validation: ${{ steps.filter.outputs.data_validation }}
+      training: ${{ steps.filter.outputs.training }}
+      evaluation: ${{ steps.filter.outputs.evaluation }}
+      model_registry: ${{ steps.filter.outputs.model_registry }}
+      prediction_api: ${{ steps.filter.outputs.prediction_api }}
+      monitoring: ${{ steps.filter.outputs.monitoring }}
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed services
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+
+            data_download:
+              - 'services/data-download-service/**'
+              - 'requirements.txt'
+              - '.github/workflows/docker-ci.yml'
+
+            data_validation:
+              - 'services/data-validation-service/**'
+              - 'requirements.txt'
+              - '.github/workflows/docker-ci.yml'
+
+            training:
+              - 'services/training-service/**'
+              - 'requirements.txt'
+              - '.github/workflows/docker-ci.yml'
+
+            evaluation:
+              - 'services/evaluation-service/**'
+              - 'requirements.txt'
+              - '.github/workflows/docker-ci.yml'
+
+            model_registry:
+              - 'services/model-registry-service/**'
+              - 'requirements.txt'
+              - '.github/workflows/docker-ci.yml'
+
+            prediction_api:
+              - 'services/prediction-api/**'
+              - 'requirements.txt'
+              - '.github/workflows/docker-ci.yml'
+
+            monitoring:
+              - 'services/monitoring-service/**'
+              - 'requirements.txt'
+              - '.github/workflows/docker-ci.yml'
+
+
+  # ==========================================================
+  # 2. DATA DOWNLOAD SERVICE
+  # ==========================================================
+
+  build-data-download:
+    name: Build data download service
+    needs: changes
+    if: needs.changes.outputs.data_download == 'true'
+
     runs-on: ubuntu-latest
 
     steps:
 
-      # ======================================================
-      # 1. CHECKOUT
-      # ======================================================
-
       - name: Checkout repository
         uses: actions/checkout@v4
-
-
-      # ======================================================
-      # 2. LOGIN TO DOCKER HUB
-      # ======================================================
 
       - name: Login to Docker Hub
         uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-
-      # ======================================================
-      # 3. BUILD + PUSH DOWNLOAD SERVICE
-      # ======================================================
 
       - name: Build and push data download service
         uses: docker/build-push-action@v7
@@ -50,11 +114,31 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-data-download-service:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-data-download-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
 
-      # ======================================================
-      # 4. BUILD + PUSH VALIDATION SERVICE
-      # ======================================================
+  # ==========================================================
+  # 3. DATA VALIDATION SERVICE
+  # ==========================================================
+
+  build-data-validation:
+    name: Build data validation service
+    needs: changes
+    if: needs.changes.outputs.data_validation == 'true'
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push data validation service
         uses: docker/build-push-action@v7
@@ -65,11 +149,31 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-data-validation-service:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-data-validation-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
 
-      # ======================================================
-      # 5. BUILD + PUSH TRAINING SERVICE
-      # ======================================================
+  # ==========================================================
+  # 4. TRAINING SERVICE
+  # ==========================================================
+
+  build-training:
+    name: Build training service
+    needs: changes
+    if: needs.changes.outputs.training == 'true'
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push training service
         uses: docker/build-push-action@v7
@@ -80,11 +184,31 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-training-service:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-training-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
 
-      # ======================================================
-      # 6. BUILD + PUSH EVALUATION SERVICE
-      # ======================================================
+  # ==========================================================
+  # 5. EVALUATION SERVICE
+  # ==========================================================
+
+  build-evaluation:
+    name: Build evaluation service
+    needs: changes
+    if: needs.changes.outputs.evaluation == 'true'
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push evaluation service
         uses: docker/build-push-action@v7
@@ -95,11 +219,31 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-evaluation-service:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-evaluation-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
 
-      # ======================================================
-      # 7. BUILD + PUSH MODEL REGISTRY SERVICE
-      # ======================================================
+  # ==========================================================
+  # 6. MODEL REGISTRY SERVICE
+  # ==========================================================
+
+  build-model-registry:
+    name: Build model registry service
+    needs: changes
+    if: needs.changes.outputs.model_registry == 'true'
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push model registry service
         uses: docker/build-push-action@v7
@@ -110,11 +254,31 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-model-registry-service:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-model-registry-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
 
-      # ======================================================
-      # 8. BUILD + PUSH PREDICTION API
-      # ======================================================
+  # ==========================================================
+  # 7. PREDICTION API
+  # ==========================================================
+
+  build-prediction-api:
+    name: Build prediction API
+    needs: changes
+    if: needs.changes.outputs.prediction_api == 'true'
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push prediction API
         uses: docker/build-push-action@v7
@@ -125,11 +289,31 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-prediction-api:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-prediction-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
 
-      # ======================================================
-      # 9. BUILD + PUSH MONITORING SERVICE
-      # ======================================================
+  # ==========================================================
+  # 8. MONITORING SERVICE
+  # ==========================================================
+
+  build-monitoring:
+    name: Build monitoring service
+    needs: changes
+    if: needs.changes.outputs.monitoring == 'true'
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push monitoring service
         uses: docker/build-push-action@v7
@@ -140,3 +324,5 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-monitoring-service:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-monitoring-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
