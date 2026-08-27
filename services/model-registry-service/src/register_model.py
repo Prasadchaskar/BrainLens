@@ -1,12 +1,17 @@
+import json
 import logging
 import os
 import sys
+from pathlib import Path
 
 import mlflow
-
 from dotenv import load_dotenv
 from mlflow import MlflowClient
 
+
+# ============================================================
+# ENVIRONMENT
+# ============================================================
 
 load_dotenv()
 
@@ -18,11 +23,31 @@ load_dotenv()
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ],
     force=True,
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# PROJECT ROOT
+# ============================================================
+
+PROJECT_ROOT_ENV = os.getenv(
+    "PROJECT_ROOT"
+)
+
+if PROJECT_ROOT_ENV:
+    PROJECT_ROOT = Path(
+        PROJECT_ROOT_ENV
+    )
+else:
+    PROJECT_ROOT = (
+        Path(__file__).resolve().parents[2]
+    )
 
 
 # ============================================================
@@ -45,9 +70,10 @@ MODEL_NAME = (
     "brainlens-brain-tumor-classifier"
 )
 
-# This is the Logged Model ID shown in your MLflow UI.
-LOGGED_MODEL_ID = (
-    "m-e79c42a22076447fba6463b742c790ff"
+PACKAGING_METADATA_PATH = (
+    PROJECT_ROOT
+    / "artifacts"
+    / "model_packaging.json"
 )
 
 
@@ -70,18 +96,24 @@ if not DAGSHUB_TOKEN:
         "DAGSHUB_TOKEN is required."
     )
 
+if not PACKAGING_METADATA_PATH.exists():
+    raise FileNotFoundError(
+        "Model packaging metadata not found: "
+        f"{PACKAGING_METADATA_PATH}"
+    )
+
 
 # ============================================================
 # MLFLOW AUTH
 # ============================================================
 
-os.environ["MLFLOW_TRACKING_USERNAME"] = (
-    DAGSHUB_USERNAME
-)
+os.environ[
+    "MLFLOW_TRACKING_USERNAME"
+] = DAGSHUB_USERNAME
 
-os.environ["MLFLOW_TRACKING_PASSWORD"] = (
-    DAGSHUB_TOKEN
-)
+os.environ[
+    "MLFLOW_TRACKING_PASSWORD"
+] = DAGSHUB_TOKEN
 
 mlflow.set_tracking_uri(
     MLFLOW_TRACKING_URI
@@ -93,18 +125,56 @@ mlflow.set_tracking_uri(
 # ============================================================
 
 def register_model() -> None:
+    """
+    Register the MLflow LoggedModel produced by
+    package_model.py into the MLflow Model Registry.
+    """
+
+    # --------------------------------------------------------
+    # Load packaging metadata
+    # --------------------------------------------------------
+
+    with open(
+        PACKAGING_METADATA_PATH,
+        "r",
+        encoding="utf-8",
+    ) as file:
+
+        metadata = json.load(
+            file
+        )
+
+    logged_model_id = metadata.get(
+        "logged_model_id"
+    )
+
+    if not logged_model_id:
+        raise ValueError(
+            "model_packaging.json does not contain "
+            "logged_model_id."
+        )
+
+    logger.info(
+        "Logged model ID: %s",
+        logged_model_id,
+    )
+
+    # --------------------------------------------------------
+    # MLflow client
+    # --------------------------------------------------------
 
     client = MlflowClient(
         tracking_uri=MLFLOW_TRACKING_URI
     )
 
-    logger.info(
-        "Fetching logged model: %s",
-        LOGGED_MODEL_ID,
-    )
+    # --------------------------------------------------------
+    # Fetch logged model
+    # --------------------------------------------------------
 
-    logged_model = client.get_logged_model(
-        LOGGED_MODEL_ID
+    logged_model = (
+        client.get_logged_model(
+            logged_model_id
+        )
     )
 
     logger.info(
@@ -121,13 +191,17 @@ def register_model() -> None:
         logged_model.source_run_id,
     )
 
-    # MLflow exposes the logged model's model URI.
+    # MLflow exposes the logged model URI.
     model_uri = logged_model.model_uri
 
     logger.info(
         "Model URI: %s",
         model_uri,
     )
+
+    # --------------------------------------------------------
+    # Register model
+    # --------------------------------------------------------
 
     logger.info(
         "Registering as: %s",
@@ -168,8 +242,20 @@ def register_model() -> None:
         name=model_version.name,
         version=model_version.version,
         key="source_logged_model_id",
-        value=LOGGED_MODEL_ID,
+        value=logged_model_id,
     )
+
+    if metadata.get(
+        "training_run_id"
+    ):
+        client.set_model_version_tag(
+            name=model_version.name,
+            version=model_version.version,
+            key="training_run_id",
+            value=metadata[
+                "training_run_id"
+            ],
+        )
 
     logger.info(
         "Model version tagged as candidate."
@@ -194,6 +280,10 @@ def main() -> None:
 
         sys.exit(1)
 
+
+# ============================================================
+# ENTRY POINT
+# ============================================================
 
 if __name__ == "__main__":
     main()

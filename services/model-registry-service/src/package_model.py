@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-
+import json
 import mlflow
 import mlflow.pytorch
 import numpy as np
@@ -48,6 +48,11 @@ if PROJECT_ROOT_ENV:
 else:
     PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
+MODEL_PACKAGING_METADATA_PATH = (
+    PROJECT_ROOT
+    / "artifacts"
+    / "model_packaging.json"
+)
 
 # ============================================================
 # CONFIGURATION
@@ -390,6 +395,39 @@ def package_model() -> None:
         logger.info(
             "Model URI: %s",
             model_info.model_uri,
+        )
+
+        logged_model_id = model_info.model_id
+
+        logger.info(
+            "Logged model ID: %s",
+            logged_model_id,
+        )
+
+        MODEL_PACKAGING_METADATA_PATH.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        with open(
+            MODEL_PACKAGING_METADATA_PATH,
+            "w",
+            encoding="utf-8",
+        ) as file:
+            json.dump(
+                {
+                    "logged_model_id": logged_model_id,
+                    "model_uri": model_info.model_uri,
+                    "model_name": MODEL_NAME,
+                    "training_run_id": TRAINING_RUN_ID,
+                },
+                file,
+                indent=2,
+            )
+
+        logger.info(
+            "Model packaging metadata saved: %s",
+            MODEL_PACKAGING_METADATA_PATH,
         )
 
         # ----------------------------------------------------
