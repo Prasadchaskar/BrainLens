@@ -17,6 +17,7 @@ from PIL import Image, ImageOps
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
+import json
 
 
 # ============================================================
@@ -121,6 +122,11 @@ BEST_MODEL_PATH = (
     / "best_efficientnet_b0.pth"
 )
 
+TRAINING_RUN_METADATA_PATH = (
+    PROJECT_ROOT
+    / "artifacts"
+    / "training_run.json"
+)
 
 # ============================================================
 # TRAINING CONFIGURATION
@@ -933,7 +939,37 @@ def train() -> None:
         run_name=(
             "brainlens-efficientnet-b0"
         ),
-    ):
+    ) as run:
+        training_run_id = run.info.run_id
+
+        logger.info(
+            "MLflow training run ID: %s",
+            training_run_id,
+        )
+
+        TRAINING_RUN_METADATA_PATH.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        with open(
+            TRAINING_RUN_METADATA_PATH,
+            "w",
+            encoding="utf-8",
+        ) as file:
+            json.dump(
+                {
+                    "run_id": training_run_id,
+                    "model_name": MODEL_NAME,
+                },
+                file,
+                indent=2,
+            )
+
+        logger.info(
+            "Training run metadata saved: %s",
+            TRAINING_RUN_METADATA_PATH,
+        )
 
         # ----------------------------------------------------
         # PARAMETERS
