@@ -1,0 +1,142 @@
+name: BrainLens Docker CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+
+jobs:
+
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ======================================================
+      # 1. CHECKOUT
+      # ======================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ======================================================
+      # 2. LOGIN TO DOCKER HUB
+      # ======================================================
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+
+      # ======================================================
+      # 3. BUILD + PUSH DOWNLOAD SERVICE
+      # ======================================================
+
+      - name: Build and push data download service
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: services/data-download-service/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-data-download-service:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-data-download-service:${{ github.sha }}
+
+
+      # ======================================================
+      # 4. BUILD + PUSH VALIDATION SERVICE
+      # ======================================================
+
+      - name: Build and push data validation service
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: services/data-validation-service/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-data-validation-service:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-data-validation-service:${{ github.sha }}
+
+
+      # ======================================================
+      # 5. BUILD + PUSH TRAINING SERVICE
+      # ======================================================
+
+      - name: Build and push training service
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: services/training-service/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-training-service:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-training-service:${{ github.sha }}
+
+
+      # ======================================================
+      # 6. BUILD + PUSH EVALUATION SERVICE
+      # ======================================================
+
+      - name: Build and push evaluation service
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: services/evaluation-service/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-evaluation-service:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-evaluation-service:${{ github.sha }}
+
+
+      # ======================================================
+      # 7. BUILD + PUSH MODEL REGISTRY SERVICE
+      # ======================================================
+
+      - name: Build and push model registry service
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: services/model-registry-service/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-model-registry-service:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-model-registry-service:${{ github.sha }}
+
+
+      # ======================================================
+      # 8. BUILD + PUSH PREDICTION API
+      # ======================================================
+
+      - name: Build and push prediction API
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: services/prediction-api/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-prediction-api:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-prediction-api:${{ github.sha }}
+
+
+      # ======================================================
+      # 9. BUILD + PUSH MONITORING SERVICE
+      # ======================================================
+
+      - name: Build and push monitoring service
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: services/monitoring-service/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-monitoring-service:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/brainlens-monitoring-service:${{ github.sha }}
