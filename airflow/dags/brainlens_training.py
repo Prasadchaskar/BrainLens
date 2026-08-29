@@ -1,7 +1,59 @@
 from datetime import datetime
-from airflow.sdk import dag, task
-from airflow.providers.docker.operators.docker import DockerOperator
 import json
+
+from airflow.sdk import dag, task
+from airflow.sdk import Variable
+from airflow.providers.docker.operators.docker import DockerOperator
+
+
+# ============================================================
+# DOCKER HUB CONFIGURATION
+# ============================================================
+
+DOCKERHUB_USERNAME = Variable.get(
+    "dockerhub_username"
+)
+
+IMAGE_TAG = Variable.get(
+    "brainlens_image_tag",
+    default="latest",
+)
+
+
+# ============================================================
+# IMAGE NAMES
+# ============================================================
+
+DATA_DOWNLOAD_IMAGE = (
+    f"{DOCKERHUB_USERNAME}/"
+    f"brainlens-data-download-service:"
+    f"{IMAGE_TAG}"
+)
+
+DATA_VALIDATION_IMAGE = (
+    f"{DOCKERHUB_USERNAME}/"
+    f"brainlens-data-validation-service:"
+    f"{IMAGE_TAG}"
+)
+
+TRAINING_IMAGE = (
+    f"{DOCKERHUB_USERNAME}/"
+    f"brainlens-training-service:"
+    f"{IMAGE_TAG}"
+)
+
+EVALUATION_IMAGE = (
+    f"{DOCKERHUB_USERNAME}/"
+    f"brainlens-evaluation-service:"
+    f"{IMAGE_TAG}"
+)
+
+MODEL_REGISTRY_IMAGE = (
+    f"{DOCKERHUB_USERNAME}/"
+    f"brainlens-model-registry-service:"
+    f"{IMAGE_TAG}"
+)
+
 
 # ============================================================
 # PATHS
@@ -23,9 +75,11 @@ TRAINING_RUN_METADATA_FILE = (
     "/opt/airflow/artifacts/training_run.json"
 )
 
+
 # ============================================================
 # DAG
 # ============================================================
+
 @dag(
     dag_id="brainlens_training",
     schedule=None,
@@ -40,23 +94,30 @@ def brainlens_training():
     # Download data
     download_data = DockerOperator(
         task_id="download_data",
-        image="brainlens-data-download-service:latest",
-        command=["python", "src/main.py"],
+
+        image=DATA_DOWNLOAD_IMAGE,
+
+        command=[
+            "python",
+            "src/main.py",
+        ],
+
         working_dir="/app",
         docker_url=("unix://var/run/docker.sock"),
         environment={
             "DAGSHUB_USERNAME": "{{ conn.dagshub_data.login }}",
             "DAGSHUB_TOKEN": "{{ conn.dagshub_data.password }}",
         },
+
         auto_remove="success",
-        force_pull=False,
+        force_pull=True,
     )
 
     # Validate data
     validate_data = DockerOperator(
         task_id="validate_data",
 
-        image="brainlens-data-validation-service:latest",
+        image=DATA_VALIDATION_IMAGE,
 
         command=[
             "python",
@@ -83,14 +144,14 @@ def brainlens_training():
 
         auto_remove="success",
 
-        force_pull=False,
+        force_pull=True,
     )
 
     # 3. TRAIN MODEL
     train_model = DockerOperator(
         task_id="train_model",
 
-        image="brainlens-training-service:latest",
+        image=TRAINING_IMAGE,
 
         command=[
             "python",
@@ -131,7 +192,7 @@ def brainlens_training():
 
         auto_remove="success",
 
-        force_pull=False,
+        force_pull=True,
 
         device_requests=[
             {
@@ -180,7 +241,7 @@ def brainlens_training():
     evaluate_model = DockerOperator(
         task_id="evaluate_model",
 
-        image="brainlens-evaluation-service:latest",
+        image=EVALUATION_IMAGE,
 
         command=[
             "python",
@@ -226,7 +287,7 @@ def brainlens_training():
 
         auto_remove="success",
 
-        force_pull=False,
+        force_pull=True,
 
         device_requests=[
             {
@@ -242,7 +303,7 @@ def brainlens_training():
     package_model = DockerOperator(
         task_id="package_model",
 
-        image="brainlens-model-registry-service:latest",
+        image=MODEL_REGISTRY_IMAGE,
 
         command=[
             "python",
@@ -281,7 +342,7 @@ def brainlens_training():
 
         auto_remove="success",
 
-        force_pull=False,
+        force_pull=True,
 
         device_requests=[
             {
@@ -294,10 +355,11 @@ def brainlens_training():
         ],
     )
 
+    # 7. REGISTER MODEL
     register_model = DockerOperator(
         task_id="register_model",
 
-        image="brainlens-model-registry-service:latest",
+        image=MODEL_REGISTRY_IMAGE,
 
         command=[
             "python",
@@ -331,19 +393,26 @@ def brainlens_training():
 
         auto_remove="success",
 
-        force_pull=False,
+        force_pull=True,
     )
     
     # ========================================================
     # DEPENDENCIES
     # ========================================================
 
-    run_id = get_training_run_id()
+    run_id = (
+        get_training_run_id()
+    )
 
     download_data >> validate_data >> train_model
 
     train_model >> run_id >> evaluate_model
 
     evaluate_model >> package_model >> register_model
-# DAG Instance
+
+
+# ============================================================
+# DAG INSTANCE
+# ============================================================
+
 brainlens_training()

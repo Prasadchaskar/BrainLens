@@ -1,13 +1,54 @@
 import json
 from datetime import datetime
 
-from airflow.sdk import dag, task
+from airflow.sdk import dag, task, Variable
 from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.providers.smtp.operators.smtp import EmailOperator
 
 
 # ============================================================
-# PATHS
+# DOCKER HUB CONFIGURATION
+# ============================================================
+
+DOCKERHUB_USERNAME = Variable.get(
+    "dockerhub_username"
+)
+
+IMAGE_TAG = Variable.get(
+    "brainlens_image_tag",
+    default="latest",
+)
+
+
+# ============================================================
+# IMAGE
+# ============================================================
+
+MONITORING_IMAGE = (
+    f"{DOCKERHUB_USERNAME}/"
+    f"brainlens-monitoring-service:"
+    f"{IMAGE_TAG}"
+)
+
+
+# ============================================================
+# SHARED MONITORING DATA
+# ============================================================
+#
+# IMPORTANT:
+# This directory must be mounted into BOTH:
+#
+# 1. Airflow container
+# 2. Monitoring Docker container
+#
+# The monitoring container writes:
+#
+#     /app/data/reports/monitoring_result_latest.json
+#
+# Airflow reads:
+#
+#     /opt/airflow/monitoring-data/reports/
+#
 # ============================================================
 
 MONITORING_DATA_HOST_PATH = (
@@ -15,8 +56,12 @@ MONITORING_DATA_HOST_PATH = (
     "services/monitoring-service/data"
 )
 
+MONITORING_DATA_AIRFLOW_PATH = (
+    "/opt/airflow/monitoring-data"
+)
+
 MONITORING_RESULT_FILE = (
-    "/opt/airflow/monitoring-data/"
+    f"{MONITORING_DATA_AIRFLOW_PATH}/"
     "reports/monitoring_result_latest.json"
 )
 
@@ -53,7 +98,7 @@ def brainlens_monitoring():
     run_monitoring = DockerOperator(
         task_id="run_monitoring",
 
-        image="brainlens-monitoring-service:latest",
+        image=MONITORING_IMAGE,
 
         command=[
             "python",
@@ -71,18 +116,21 @@ def brainlens_monitoring():
 
         mounts=[
             {
-                "source": (
-                    MONITORING_DATA_HOST_PATH
-                ),
+                "source": MONITORING_DATA_HOST_PATH,
                 "target": "/app/data",
                 "type": "bind",
             },
         ],
 
+        environment={
+            "PROJECT_ROOT": "/app",
+        },
+
         auto_remove="success",
 
-        force_pull=False,
+        force_pull=True,
     )
+
 
     # ========================================================
     # 2. READ MONITORING RESULT
@@ -90,11 +138,14 @@ def brainlens_monitoring():
 
     @task
     def read_monitoring_result():
-        """
-        Read the consolidated monitoring result and return
-        only the information required by Airflow for
-        branching and notifications.
-        """
+
+        if not __import__("os").path.exists(
+            MONITORING_RESULT_FILE
+        ):
+            raise FileNotFoundError(
+                "Monitoring result does not exist: "
+                f"{MONITORING_RESULT_FILE}"
+            )
 
         with open(
             MONITORING_RESULT_FILE,
@@ -141,82 +192,114 @@ def brainlens_monitoring():
             )
 
         payload = {
-            "overall_status": result.get(
-                "overall_status"
+            "overall_status": (
+                result.get(
+                    "overall_status"
+                )
             ),
-            "alert_status": result.get(
-                "alert",
-                {},
-            ).get(
-                "status"
+
+            "alert_status": (
+                result.get(
+                    "alert",
+                    {},
+                ).get(
+                    "status"
+                )
             ),
-            "alert_reason": result.get(
-                "alert",
-                {},
-            ).get(
-                "reason"
+
+            "alert_reason": (
+                result.get(
+                    "alert",
+                    {},
+                ).get(
+                    "reason"
+                )
             ),
-            "alert_details": result.get(
-                "alert",
-                {},
-            ).get(
-                "details",
-                {},
+
+            "alert_details": (
+                result.get(
+                    "alert",
+                    {},
+                ).get(
+                    "details",
+                    {},
+                )
             ),
-            "monitoring_timestamp": result.get(
-                "monitoring_timestamp"
+
+            "monitoring_timestamp": (
+                result.get(
+                    "monitoring_timestamp"
+                )
             ),
-            "window_start": result.get(
-                "window_start"
+
+            "window_start": (
+                result.get(
+                    "window_start"
+                )
             ),
-            "window_end": result.get(
-                "window_end"
+
+            "window_end": (
+                result.get(
+                    "window_end"
+                )
             ),
-            "window_hours": result.get(
-                "window_hours"
+
+            "window_hours": (
+                result.get(
+                    "window_hours"
+                )
             ),
+
             "data_drift_status": (
                 data_drift.get(
                     "status"
                 )
             ),
+
             "data_drifted_features": (
                 data_drift.get(
                     "drifted_features",
                     [],
                 )
             ),
+
             "prediction_drift_status": (
                 prediction_drift.get(
                     "status"
                 )
             ),
+
             "prediction_drifted_features": (
                 prediction_drift.get(
                     "drifted_features",
                     [],
                 )
             ),
+
             "performance_status": (
                 performance.get(
                     "status"
                 )
             ),
+
             "production_sample_count": (
                 performance.get(
                     "sample_count"
                 )
             ),
+
             "labeled_sample_count": (
                 performance.get(
                     "labeled_sample_count"
                 )
             ),
+
             "production_f1": (
                 performance_overall.get(
                     "f1_weighted"
                 )
             ),
+
             "reference_f1": (
                 result.get(
                     "reference_performance",
@@ -241,6 +324,7 @@ def brainlens_monitoring():
 
         return payload
 
+
     # ========================================================
     # 3. CHOOSE ACTION
     # ========================================================
@@ -249,10 +333,6 @@ def brainlens_monitoring():
     def choose_action(
         payload: dict,
     ):
-        """
-        Select the next task based on the operational
-        monitoring status.
-        """
 
         status = payload.get(
             "overall_status"
@@ -274,6 +354,7 @@ def brainlens_monitoring():
             f"Unknown monitoring status: {status}"
         )
 
+
     # ========================================================
     # 4. HEALTHY
     # ========================================================
@@ -286,6 +367,7 @@ def brainlens_monitoring():
             "No action required."
         )
 
+
     # ========================================================
     # 5. INSUFFICIENT DATA
     # ========================================================
@@ -297,6 +379,7 @@ def brainlens_monitoring():
             "BrainLens monitoring does not have "
             "enough recent production data."
         )
+
 
     # ========================================================
     # 6. WARNING EMAIL
@@ -384,6 +467,7 @@ def brainlens_monitoring():
         </p>
         """,
     )
+
 
     # ========================================================
     # 7. ALERT EMAIL
@@ -489,11 +573,14 @@ def brainlens_monitoring():
         """,
     )
 
+
     # ========================================================
     # DEPENDENCIES
     # ========================================================
 
-    payload = read_monitoring_result()
+    payload = (
+        read_monitoring_result()
+    )
 
     action = choose_action(
         payload
