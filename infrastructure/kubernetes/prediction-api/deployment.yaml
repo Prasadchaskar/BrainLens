@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: brainlens-prediction-api
+  namespace: brainlens
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: brainlens-prediction-api
+
+  template:
+    metadata:
+      labels:
+        app: brainlens-prediction-api
+
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-creds
+
+      containers:
+        - name: prediction-api
+
+          image: prasadchaskar/brainlens-prediction-api:latest
+
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 8000
+
+          env:
+            - name: MLFLOW_TRACKING_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: brainlens-mlflow-config
+                  key: MLFLOW_TRACKING_URI
+
+            - name: DAGSHUB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: brainlens-mlflow-secret
+                  key: DAGSHUB_USERNAME
+
+            - name: DAGSHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: brainlens-mlflow-secret
+                  key: DAGSHUB_TOKEN

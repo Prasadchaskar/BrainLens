@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: brainlens-mlflow-config
+  namespace: brainlens
+
+data:
+  MLFLOW_TRACKING_URI: "https://dagshub.com/Prasadchaskar/BrainLens.mlflow"
