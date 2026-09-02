@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: brainlens-monitoring
+  namespace: brainlens
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: brainlens-monitoring
+
+  template:
+    metadata:
+      labels:
+        app: brainlens-monitoring
+
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-creds
+
+      containers:
+        - name: monitoring
+
+          image: prasadchaskar/brainlens-monitoring-service:latest
+
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 8001
+
+          env:
+            - name: PROJECT_ROOT
+              valueFrom:
+                configMapKeyRef:
+                  name: brainlens-monitoring-config
+                  key: PROJECT_ROOT
+
+          volumeMounts:
+            - name: monitoring-data
+              mountPath: /app/data
+
+      volumes:
+        - name: monitoring-data
+          persistentVolumeClaim:
+            claimName: brainlens-monitoring-data

@@ -49,3 +49,5 @@ spec:
                 secretKeyRef:
                   name: brainlens-mlflow-secret
                   key: DAGSHUB_TOKEN
+            - name: MONITORING_SERVICE_URL
+              value: "http://brainlens-monitoring-service:8001"
