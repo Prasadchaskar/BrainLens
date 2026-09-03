@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+
+metadata:
+  name: dataset-storage-test
+  namespace: brainlens
+
+spec:
+  containers:
+    - name: test
+
+      image: busybox:1.36
+
+      command:
+        - sh
+        - -c
+        - |
+          mkdir -p /workspace/data/raw/dataset
+          echo "storage works" > /workspace/data/test.txt
+          sleep 300
+
+      volumeMounts:
+        - name: dataset
+          mountPath: /workspace/data
+
+  volumes:
+    - name: dataset
+
+      persistentVolumeClaim:
+        claimName: brainlens-dataset

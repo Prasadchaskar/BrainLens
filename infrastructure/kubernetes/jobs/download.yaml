@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: brainlens-download
+  namespace: brainlens
+
+spec:
+  backoffLimit: 2
+
+  template:
+
+    metadata:
+      labels:
+        app: brainlens-download
+
+    spec:
+      restartPolicy: Never
+
+      imagePullSecrets:
+        - name: dockerhub-creds
+
+      containers:
+
+        - name: download
+
+          image: prasadchaskar/brainlens-data-download-service:latest
+
+          imagePullPolicy: Always
+
+          command:
+            - python
+            - src/main.py
+
+          env:
+            - name: DAGSHUB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: brainlens-mlflow-secret
+                  key: DAGSHUB_USERNAME
+
+            - name: DAGSHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: brainlens-mlflow-secret
+                  key: DAGSHUB_TOKEN
+
+          volumeMounts:
+
+            - name: dataset
+              mountPath: /app/data/raw/dataset
+
+      volumes:
+
+        - name: dataset
+
+          persistentVolumeClaim:
+            claimName: brainlens-dataset

@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: brainlens-validation
+  namespace: brainlens
+
+spec:
+  backoffLimit: 2
+
+  template:
+
+    metadata:
+      labels:
+        app: brainlens-validation
+
+    spec:
+      restartPolicy: Never
+
+      imagePullSecrets:
+        - name: dockerhub-creds
+
+      containers:
+
+        - name: validation
+
+          image: prasadchaskar/brainlens-data-validation-service:latest
+
+          imagePullPolicy: Always
+
+          command:
+            - python
+            - src/main.py
+
+          env:
+            - name: PROJECT_ROOT
+              value: /app
+
+          volumeMounts:
+            - name: dataset
+              mountPath: /app/data/raw/dataset
+
+      volumes:
+
+        - name: dataset
+
+          persistentVolumeClaim:
+            claimName: brainlens-dataset

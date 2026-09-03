@@ -1,0 +1,89 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: brainlens-training
+  namespace: brainlens
+
+spec:
+  backoffLimit: 2
+
+  template:
+
+    metadata:
+      labels:
+        app: brainlens-training
+
+    spec:
+      restartPolicy: Never
+
+      imagePullSecrets:
+        - name: dockerhub-creds
+
+      containers:
+
+        - name: training
+
+          image: prasadchaskar/brainlens-training-service:latest
+
+          imagePullPolicy: Always
+
+          command:
+            - python
+            - src/main.py
+
+          env:
+
+            - name: PROJECT_ROOT
+              value: /app
+
+            - name: MLFLOW_TRACKING_URI
+              valueFrom:
+                secretKeyRef:
+                  name: brainlens-mlflow-secret
+                  key: MLFLOW_TRACKING_URI
+
+            - name: DAGSHUB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: brainlens-mlflow-secret
+                  key: DAGSHUB_USERNAME
+
+            - name: DAGSHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: brainlens-mlflow-secret
+                  key: DAGSHUB_TOKEN
+
+            - name: MLFLOW_EXPERIMENT_NAME
+              value: brainlens-training
+
+          resources:
+
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+
+          volumeMounts:
+
+            - name: dataset
+              mountPath: /app/data/raw/dataset
+
+            - name: artifacts
+              mountPath: /app/artifacts
+
+      volumes:
+
+        - name: dataset
+
+          persistentVolumeClaim:
+            claimName: brainlens-dataset
+
+        - name: artifacts
+
+          persistentVolumeClaim:
+            claimName: brainlens-artifacts
